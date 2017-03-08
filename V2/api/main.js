@@ -371,8 +371,9 @@ router.route('/groups/:group_id/members')
 							model.update({groupId: req.params.group_id}, {$push: {members: member}},  function(err) {
 								if (err) {
 									res.send(err);
+									res.json({code: -2, status: err})
 								} else {
-									res.json({message: req.body.memberId + ' was created successfully'});
+									res.json({code: 0, status: req.body.memberId + ' was created successfully'})
 								}
 							})
 						} else {
