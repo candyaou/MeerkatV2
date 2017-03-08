@@ -6,14 +6,17 @@ var mongoose = require('mongoose');
 var analyzer = require('../controller/controller');
 var model = require('../model/model');
 
-// connect to DB
-mongoose.connect('mongodb://meerkat:meerkat@ds048719.mlab.com:48719/meerkat');
-var db = mongoose.connection;
-db.on('error', console.error.bind(console, 'connection error:'));
-db.once('open', function() {
-    // we're connected!
-    console.log({message: 'Connect to DB successfully'});
-});
+function connectToDB() {
+	// connect to DB
+	mongoose.connect('mongodb://meerkat:meerkat@ds149278.mlab.com:49278/meerkat')
+	var db = mongoose.connection;
+	db.on('error', console.error.bind(console, 'connection error:'));
+	db.once('open', function() {
+		// we're connected!
+		console.log({message: 'Connect to DB successfully'});
+	});
+}
+connectToDB();
 
 /**
  * Get member's personId from DB
@@ -149,20 +152,19 @@ router.route('/connect')
 
     // connect to DB
     .get(function(req, res) {
-        mongoose.connect('mongodb://meerkat:meerkat@ds048719.mlab.com:48719/meerkat');
-        var db = mongoose.connection;
-        db.on('error', console.error.bind(console, 'connection error:'));
-        db.once('open', function() {
-            // we're connected!
-            res.json({message: 'Connect to DB successfully'});
-        });
+        connectToDB();
     });
 
 router.route('/createCollection')
     // createa collection
     .post(function(req, res) {
-        userCollection = mongoose.model(req.body.name, meerkatSchema);
-            res.json({message: 'Created model successfully'});
+		if(elements[0] == undefined) {
+			emptyThing = new model([])
+			emptyThing.save()
+			res.json({message: 'Created model successfully'})
+		} else {
+			res.json({message: 'Cannot create model due to the existing one.'})
+		}
     });
 
 // on route that end in /group
@@ -220,7 +222,11 @@ router.route('/groups')
             if (err) {
                 res.send(err);
             } else {
-                res.json(group);
+				// Check whether there is at least one group in DB or not.
+				if(group[0] == null)
+					res.json([]) // If not return [] <-- Blank JSON
+				else
+                	res.json(group);
             }
         })
     });
@@ -236,7 +242,11 @@ router.route('/groups/:group_id')
             if (err) {
                 res.send(err);
             } else {
-                res.json(group);
+				// Check whether that particular group exists or not
+				if(group[0] == null)
+					res.json([]) // If not return [] <-- Blank JSON
+				else
+                	res.json(group);
             }
         });
     })
@@ -330,16 +340,47 @@ router.route('/groups/:group_id/members')
             if (error) {
                 res.send(error);
             } else {
-                member.personId = response.personId;
-                
-                console.log(member)
-                model.update({groupId: req.params.group_id}, {$push: {members: member}},  function(err) {
-                    if (err) {
-                        res.send(err);
-                    } else {
-                        res.json({message: req.body.memberId + ' was created successfully'});
-                    }
-                })
+				//Checking duplication of memberId in DB.
+				var query = model.find({
+					$and: [
+						{groupId: req.params.group_id}, 
+						{members: {$elemMatch: {memberId: req.body.memberId}}}
+					]}).select('members');
+
+				var isDuplicated = false;
+				query.exec(function(err, member) {
+					if (err) {
+						res.send(err)
+					} else {
+						if(member[0] != undefined) {
+							for(var i=0; i<member[0].members.length; i++) {
+								if(member[0].members[i].memberId == req.body.memberId) {
+									isDuplicated = true;
+									break
+								}
+							}
+						}
+					}
+				}).then(function(response, error) {
+					if(error) {
+						res.send(error);						
+					} else {
+						if(isDuplicated == false) {
+							member.personId = response.personId              
+							console.log(member)
+							model.update({groupId: req.params.group_id}, {$push: {members: member}},  function(err) {
+								if (err) {
+									res.send(err);
+								} else {
+									res.json({message: req.body.memberId + ' was created successfully'});
+								}
+							})
+						} else {
+							//Duplication of memberId
+							res.json({code: -1, status: "There is a duplication of memberId in the database."})
+						}
+					}
+				});
             }
         })
     })
@@ -352,7 +393,11 @@ router.route('/groups/:group_id/members')
             if (err) {
                 res.send(err);
             } else {
-                res.json(group[0].members);
+				// Check whether that particular group exists or not
+				if(group[0] == null)
+					res.json([]) // If not return [] <-- Blank JSON
+				else
+                	res.json(group[0].members);
             }
         })
     });
@@ -364,12 +409,28 @@ router.route('/groups/:group_id/members/:member_id')
      * Get member's object
      */
     .get(function(req, res) {
-        model.find({$and: [{groupId: req.params.group_id}, {member: {$elemMatch: {memberId: req.params.member_id}}}]}, function(err, member) {
+	
+        var query = model.find({
+            $and: [
+                {groupId: req.params.group_id}, 
+                {members: {$elemMatch: {memberId: req.params.member_id}}}
+            ]}).select('members');
+	
+        query.exec(function(err, member) {
+			var returnMember = [];
             if (err) {
-                res.send(err);
+                res.send(err)
             } else {
-                res.json(member);
-            }
+				if(member[0] != undefined) {
+					for(var i=0; i<member[0].members.length; i++) {
+						if(member[0].members[i].memberId == req.params.member_id) {
+							returnMember = member[0].members[i]
+							break
+						}
+					}
+				}
+			}
+			res.json(returnMember)
         })
     })
 
@@ -401,40 +462,21 @@ router.route('/groups/:group_id/members/:member_id/name')
      * @body {string}  lastname
      */
     .put(function(req, res) {
-        if (req.body.firstname == undefined) {
-            res.send({error: 'Firstname must be provided'});
+        if (req.params.member_id == undefined) {
+            res.send({error: 'Member Id must be provided'});
+		}
+	
+		if (req.body.firstname == undefined) {
+            res.send({error: 'First name must be provided'});
+        }
+	
+        if (req.body.lastname == undefined) {
+            res.send({error: 'Last name must be provided'});
         }
 
-
-        if (req.body.memberId == undefined || req.body.firstname == undefined || req.body.lastname == undefined)
-            res.send({error: 'Id and Name must be provided'});
-        
         var memberUpdate;
-        if (req.body.firstname == undefined) {
-            res.send({error: 'Firstname must be provided'});
-        }
+        var member = {memberId: req.params.member_id, firstname: req.body.firstname, lastname: req.body.lastname}
 
-        var member = {memberId: req.body.memberId, firstname: req.body.firstname, lastname: req.body.lastname}
-        member.memberDetail = req.body.memberDetail || '';
-
-        console.log(member)
-        memberUpdate = analyzer().person.update(req.params.group_id, req.body.firstname + ' ' + req.body.lastname, member.memberDetail)
-        memberUpdate.then(function(response, error) {
-            if (error) {
-                res.send(error);
-            } else {
-                member.personId = response.personId;
-                
-                console.log(member);
-                model.update({groupId: req.params.group_id}, {$push: {members: member}},  function(err) {
-                    if (err) {
-                        res.send(err);
-                    } else {
-                        res.json({message: req.body.memberId + ' was created successfully'});
-                    }
-                })
-            }
-        })
     });
 
 // on route that end in /groups/:group_id/members/:member_id/detail
@@ -447,6 +489,69 @@ router.route('/groups/:group_id/members/:member_id/detail')
     .put(function(req, res) {
 
     });
+
+// on route that in /groups/:group_id/members/:member_id/personId
+router.route('/groups/:group_id/members/:member_id/personId')
+	/**
+	 * Get personId of member
+     */
+    .get(function(req, res) {
+	
+        var query = model.find({
+            $and: [
+                {groupId: req.params.group_id}, 
+                {members: {$elemMatch: {memberId: req.params.member_id}}}
+            ]}).select('members');
+	
+        query.exec(function(err, member) {
+			var member_person_id = [];
+            if (err) {
+                res.send(err)
+            } else {
+				if(member[0] != undefined) {
+					for(var i=0; i<member[0].members.length; i++) {
+						if(member[0].members[i].memberId == req.params.member_id) {
+							member_person_id = member[0].members[i].personId
+							break
+						}
+					}
+				}
+			}
+			res.json({personId : member_person_id})
+        })
+    })
+
+
+// on route that in /groups/:group_id/members/:member_id/personId
+router.route('/groups/:group_id/members/:member_id/personId')
+	/**
+	 * Get personId of member
+     */
+    .get(function(req, res) {
+	
+        var query = model.find({
+            $and: [
+                {groupId: req.params.group_id}, 
+                {members: {$elemMatch: {memberId: req.params.member_id}}}
+            ]}).select('members');
+	
+        query.exec(function(err, member) {
+			var member_person_id = [];
+            if (err) {
+                res.send(err)
+            } else {
+				if(member[0] != undefined) {
+					for(var i=0; i<member[0].members.length; i++) {
+						if(member[0].members[i].memberId == req.params.member_id) {
+							member_person_id = member[0].members[i].personId
+							break
+						}
+					}
+				}
+			}
+			res.json({personId : member_person_id})
+        })
+    })
 
 // on route that in /groups/:group_id/members/:member_id/personImages
 router.route('/groups/:group_id/members/:member_id/personImages')

@@ -31,4 +31,5 @@ var meerkatSchema = mongoose.Schema({
 })
 
 var meerkatCollection = mongoose.model('TestMeerkat', meerkatSchema);
-module.exports = meerkatCollection;
+module.exports = meerkatCollection
+module.exports.meerkatSchema = meerkatSchema
