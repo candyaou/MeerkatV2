@@ -1,0 +1,30 @@
+var express = require('express');
+var bodyParser = require('body-parser');
+var main = require('./api/main');
+var port = process.env.PORT || 8080;
+
+var app = express();
+var router = express.Router();
+
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+// middleware to use for all requests
+router.use(function(req, res, next) {
+    // do logging
+    console.log('Something is happening.');
+    next(); // make sure we go to the next routes and don't stop here
+});
+
+// accesssed on http://localhost:8080/
+router.get('/', function(req, res) {
+    res.json({message: 'Welcome to Meerkat API!'});   
+});
+
+app.use('/', router);
+app.use('/api', main);
+
+app.use('/web', express.static('website'));
+
+app.listen(port);
+console.log('Magic happens on port ' + port);

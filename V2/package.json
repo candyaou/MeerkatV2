@@ -1,0 +1,37 @@
+{
+  "name": "meerkat",
+  "version": "1.0.0",
+  "description": "Framework for Face recognition, making use of Face API of Microsoft Cognitive Services",
+  "main": "server.js",
+  "dependencies": {
+    "body-parser": "^1.15.2",
+    "express": "^4.14.0",
+    "mongodb": "^2.2.11",
+    "mongoose": "^4.6.5",
+    "project-oxford": "^1.5.0",
+    "request": "^2.76.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://smiile8888@bitbucket.org/smiile8888/meerkat.git"
+  },
+  "keywords": [
+    "API",
+    "Face",
+    "recognition",
+    "Framework",
+    "Microsoft",
+    "cognitive",
+    "services",
+    "Face",
+    "API"
+  ],
+  "author": "Thanyathorn Thanapattheerakul, Paspana Assarasee",
+  "license": "ISC",
+  "homepage": "https://bitbucket.org/smiile8888/meerkat#readme"
+}
