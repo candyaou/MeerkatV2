@@ -417,17 +417,25 @@ router.route('/groups/:group_id/members/:member_id')
             ]}).select('members');
 	
         query.exec(function(err, member) {
-			var returnMember = [];
+			var returnMember = {};
             if (err) {
                 res.send(err)
+				returnMember.code = -2
+				returnMember.status = "Failed to fetch specific member."
             } else {
 				if(member[0] != undefined) {
 					for(var i=0; i<member[0].members.length; i++) {
 						if(member[0].members[i].memberId == req.params.member_id) {
-							returnMember = member[0].members[i]
+							returnMember.member = member[0].members[i]
+							returnMember.code = 0
+							returnMember.status = ""
 							break
 						}
 					}
+				}
+				if(returnMember.member == undefined) {
+					returnMember.code = -1
+					returnMember.status = "The specific member does not exist."
 				}
 			}
 			res.json(returnMember)
@@ -440,15 +448,17 @@ router.route('/groups/:group_id/members/:member_id')
     .delete(function(req, res) {
         getPersonId(req.params.group_id, req.params.member_id).then(function(response, error) {
             if (error) {
-                res.send({error: 'Failed to get personId of member id ' + req.params.member_id});
+                res.send({error: 'Failed to get personId of member id ' + req.params.member_id})
+           		res.json({code: -1, status: "Failed to get personId of member id " + req.params.member_id})
             } else {
                 return analyzer().person.delete(req.params.group_id, response);
             }
         }).then(function(response, error) {
             if (error) {
-                res.send({error: 'Failed to delete member id ' + req.params.member_id});
-            } else {
-                res.json({message: req.params.member_id + ' was deleted successfully'});
+                res.send({error: 'Failed to delete member id ' + req.params.member_id})
+           		res.json({code: -1, status: "Failed to delete member id " + req.params.member_id})
+			} else {
+				res.json({code: 0, status: ""+ req.params.member_id + " was deleted successfully"})
             }
         })
     });
@@ -496,7 +506,6 @@ router.route('/groups/:group_id/members/:member_id/personId')
 	 * Get personId of member
      */
     .get(function(req, res) {
-	
         var query = model.find({
             $and: [
                 {groupId: req.params.group_id}, 
@@ -504,52 +513,28 @@ router.route('/groups/:group_id/members/:member_id/personId')
             ]}).select('members');
 	
         query.exec(function(err, member) {
-			var member_person_id = [];
+			var returnMemberPersonId = {};
             if (err) {
                 res.send(err)
+				returnMemberPersonId.code = -2
+				returnMemberPersonId.status = "Failed to fetch personId of specific member."
             } else {
 				if(member[0] != undefined) {
 					for(var i=0; i<member[0].members.length; i++) {
 						if(member[0].members[i].memberId == req.params.member_id) {
-							member_person_id = member[0].members[i].personId
+							returnMemberPersonId.personId = member[0].members[i].personId
+							returnMemberPersonId.code = 0
+							returnMemberPersonId.status = ""
 							break
 						}
 					}
-				}
-			}
-			res.json({personId : member_person_id})
-        })
-    })
-
-
-// on route that in /groups/:group_id/members/:member_id/personId
-router.route('/groups/:group_id/members/:member_id/personId')
-	/**
-	 * Get personId of member
-     */
-    .get(function(req, res) {
-	
-        var query = model.find({
-            $and: [
-                {groupId: req.params.group_id}, 
-                {members: {$elemMatch: {memberId: req.params.member_id}}}
-            ]}).select('members');
-	
-        query.exec(function(err, member) {
-			var member_person_id = [];
-            if (err) {
-                res.send(err)
-            } else {
-				if(member[0] != undefined) {
-					for(var i=0; i<member[0].members.length; i++) {
-						if(member[0].members[i].memberId == req.params.member_id) {
-							member_person_id = member[0].members[i].personId
-							break
-						}
+					if(returnMemberPersonId == undefined) {
+						returnMemberPersonId.code = -1
+						returnMemberPersonId.status = "The specific member does not exist."
 					}
 				}
 			}
-			res.json({personId : member_person_id})
+			res.json(returnMemberPersonId)
         })
     })
 
