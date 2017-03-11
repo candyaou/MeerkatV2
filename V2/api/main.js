@@ -66,86 +66,13 @@ function getMemberInfo(groupId, response) {
     });
 }
 
-/**
- * Update presenceLog of members who are identified
- * @param  {object}  response           - response data from Face Identification
- */
-function updatePresenceLog(response) {
-    return new Promise(function(resolve, reject) {
-        for (var i = 0; i<response.length; i++) {
-            model.update({groupId: req.params.group_id, "members.personId": response[i].candidates[0].personId}, {$push: {"members.$.presenceLog": true}}, function(err){
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve({message: 'Update presenceLog successfully'});
-                }
-            })
-        }
-    })
-}
-
+/*
 /**
  * Get face's position in an image
  * @param
  */
 function getFacePosition() {
     
-}
-
-/** 
- * Gather req.body as options to send to controller().detect()
- * @param  {object}  requestBody
- * 
- * @return  {object}  options               - Options for Face detection
- */
-function gatherRequestBodyForDetection(requestBody) {
-    return new Promise(function(resolve, reject) {
-        var options = {};
-        if (requestBody.url) {
-            console.log(requestBody.url);
-            options.url = requestBody.url;
-        }
-        else if (requestBody.path) {
-            console.log(requestBody.path);
-            options.path = requestBody.path;
-        }
-        else if (requestBody.stream)  {
-            console.log(requestBody.stream);
-            options.stream = requestBody.stream;
-        }
-
-        if (requestBody.returnFaceId) {
-            console.log(requestBody.returnFaceId);
-            options.returnFaceId = Boolean(requestBody.returnFaceId);
-        }
-        if (requestBody.analyzesFaceLandmarks) {
-            console.log(requestBody.analyzesFaceLandmarks);
-            options.analyzesFaceLandmarks = Boolean(requestBody.analyzesFaceLandmarks);
-        }
-        if (requestBody.analyzesAge) {
-            console.log(requestBody.analyzesAge);
-            options.analyzesAge = Boolean(requestBody.analyzesAge);
-        }
-        if (requestBody.analyzesGender) {
-            console.log(requestBody.analyzesGender);
-            options.analyzesGender = Boolean(requestBody.analyzesGender);
-        }
-        if (requestBody.analyzesHeadPose) {
-            console.log(requestBody.analyzesHeadPose);
-            options.analyzesHeadPose = Boolean(requestBody.analyzesHeadPose);
-        }
-        if (requestBody.analyzesSmile) {
-            console.log(requestBody.analyzesSmile);
-            options.analyzesSmile = Boolean(requestBody.analyzesSmile);
-        }
-        if (requestBody.analyzesFacialHair) {
-            console.log(requestBody.analyzesFacialHair);
-            options.analyzesFacialHair = Boolean(requestBody.analyzesFacialHair);
-        }
-        
-        resolve(options);
-        reject({error: 'Failed to gather request body!'});
-    });
 }
 
 router.route('/connect')
@@ -403,14 +330,7 @@ router.route('/groups/:group_id/members')
         })
     });
 
-// on route that end in /group/:group_id/members/:member_id
-router.route('/groups/:group_id/members/:member_id')
-
-    /**
-     * Get member's object
-     */
-    .get(function(req, res) {
-	
+function findMember(req, res) {
         var query = model.find({
             $and: [
                 {groupId: req.params.group_id}, 
@@ -441,6 +361,16 @@ router.route('/groups/:group_id/members/:member_id')
 			}
 			res.json(returnMember)
         })
+}
+
+// on route that end in /group/:group_id/members/:member_id
+router.route('/groups/:group_id/members/:member_id')
+
+    /**
+     * Get member's object
+     */
+    .get(function(req, res) {	
+		findMember(req, res);
     })
 
     /**
@@ -450,14 +380,14 @@ router.route('/groups/:group_id/members/:member_id')
         getPersonId(req.params.group_id, req.params.member_id).then(function(response, error) {
             if (error) {
                 res.send({error: 'Failed to get personId of member id ' + req.params.member_id})
-           		res.json({code: -1, status: "Failed to get personId of member id " + req.params.member_id})
+           		res.json({code: -2, status: "Failed to get personId of member id " + req.params.member_id})
             } else {
                 return analyzer().person.delete(req.params.group_id, response);
             }
         }).then(function(response, error) {
             if (error) {
                 res.send({error: 'Failed to delete member id ' + req.params.member_id})
-           		res.json({code: -1, status: "Failed to delete member id " + req.params.member_id})
+           		res.json({code: -2, status: "Failed to delete member id " + req.params.member_id})
 			} else {
 				res.json({code: 0, status: ""+ req.params.member_id + " was deleted successfully"})
             }
@@ -476,18 +406,23 @@ router.route('/groups/:group_id/members/:member_id/name')
         if (req.params.member_id == undefined) {
             res.send({error: 'Member Id must be provided'});
 		}
-	
 		if (req.body.firstname == undefined) {
             res.send({error: 'First name must be provided'});
         }
-	
         if (req.body.lastname == undefined) {
             res.send({error: 'Last name must be provided'});
         }
-
-        var memberUpdate;
-        var member = {memberId: req.params.member_id, firstname: req.body.firstname, lastname: req.body.lastname}
-
+		findMember(req, res);
+		model.update({groupId: req.params.group_id, "members.memberId": req.params.member_id},
+							   {$set: {"members.$.firstname": req.body.firstname, "members.$.lastname": req.body.lastname}},
+		function(err) {
+			if (err) {
+				res.send(err);
+           		res.json({code: -2, status: "Failed to update the name of member id " + req.params.member_id})
+			} else {
+				res.json({code: 0, status: ""+ req.params.member_id + "'s name was updated successfully"})
+			}
+        })
     });
 
 // on route that end in /groups/:group_id/members/:member_id/detail
@@ -498,7 +433,22 @@ router.route('/groups/:group_id/members/:member_id/detail')
      * @body {string}  memberDetail
      */
     .put(function(req, res) {
-
+        if (req.params.member_id == undefined) {
+            res.send({error: 'Member Id must be provided'});
+		}
+        if (req.body.memberDetail == undefined) {
+            res.send({error: 'Member Detail must be provided'});
+        }
+		model.update({groupId: req.params.group_id, "members.memberId": req.params.member_id},
+							   {$set: {"members.$.memberDetail": req.body.memberDetail}},
+		function(err) {
+			if (err) {
+				res.send(err);
+           		res.json({code: -2, status: "Failed to update the detail of member id " + req.params.member_id})
+			} else {
+				res.json({code: 0, status: ""+ req.params.member_id + "'s detail was updated successfully"})
+			}
+        })
     });
 
 // on route that in /groups/:group_id/members/:member_id/personId
@@ -598,10 +548,13 @@ router.route('/groups/:group_id/members/:member_id/personImages')
             if (error) {
                 res.send(error);
             } else {
-                console.log(response);
+                console.log('@response: ' + response);
                 temp.persistedFaceId = response.persistedFaceId;
                 console.log('@temp: ' + temp.persistedFaceId);
-                model.update({groupId: req.params.group_id, "members.memberId": req.params.member_id}, {$push: {"members.$.personImages": temp}}, function(err) {
+                model.update(
+							{groupId: req.params.group_id, "members.memberId": req.params.member_id},
+							{$push: {"members.$.personImages": temp}
+					}, function(err) {
                     if (err) {
                         res.send(err);
                     } else {
@@ -630,9 +583,70 @@ router.route('/analyze/:group_id')
      * @param  {boolean} options.analyzesFacialHair     - Analyze facial hair?
      */
     .post(function(req, res) {
-        
+
+   	     var imagePath;
+		/** 
+		 * Gather req.body as options to send to controller().detect()
+		 * @param  {object}  requestBody
+		 * 
+		 * @return  {object}  options               - Options for Face detection
+		 */
+		function gatherRequestBodyForDetection(requestBody) {
+			return new Promise(function(resolve, reject) {
+				var options = {};
+				if (requestBody.url) {
+					console.log(requestBody.url);
+					options.url = requestBody.url;
+					imagePath = requestBody.url;
+				}
+				else if (requestBody.path) {
+					console.log(requestBody.path);
+					options.path = requestBody.path;
+					imagePath = requestBody.path;
+				}
+				else if (requestBody.stream)  {
+					console.log(requestBody.stream);
+					options.stream = requestBody.stream;
+					imagePath = requestBody.stream;
+				}
+
+				if (requestBody.returnFaceId) {
+					console.log(requestBody.returnFaceId);
+					options.returnFaceId = Boolean(requestBody.returnFaceId);
+				}
+				if (requestBody.analyzesFaceLandmarks) {
+					console.log(requestBody.analyzesFaceLandmarks);
+					options.analyzesFaceLandmarks = Boolean(requestBody.analyzesFaceLandmarks);
+				}
+				if (requestBody.analyzesAge) {
+					console.log(requestBody.analyzesAge);
+					options.analyzesAge = Boolean(requestBody.analyzesAge);
+				}
+				if (requestBody.analyzesGender) {
+					console.log(requestBody.analyzesGender);
+					options.analyzesGender = Boolean(requestBody.analyzesGender);
+				}
+				if (requestBody.analyzesHeadPose) {
+					console.log(requestBody.analyzesHeadPose);
+					options.analyzesHeadPose = Boolean(requestBody.analyzesHeadPose);
+				}
+				if (requestBody.analyzesSmile) {
+					console.log(requestBody.analyzesSmile);
+					options.analyzesSmile = Boolean(requestBody.analyzesSmile);
+				}
+				if (requestBody.analyzesFacialHair) {
+					console.log(requestBody.analyzesFacialHair);
+					options.analyzesFacialHair = Boolean(requestBody.analyzesFacialHair);
+				}
+
+				resolve(options);
+				reject({error: 'Failed to gather request body!'});
+			});
+		}
+	
         // Gather req.body as options to send to controller().detect()
         function gatherBody() {
+   	     	var imagePath;
             return new Promise(function(resolve, reject) {
                 var options = {};
                 if (req.body.url != undefined) {
@@ -683,17 +697,49 @@ router.route('/analyze/:group_id')
         }
 
         // Update presenceLog of members who are identidied
-        function updatePresenceLog(respons) {
+        function updatePresenceLog(group_id, imagePath, response) {
             return new Promise(function(resolve, reject) {
-                for (var i = 0; i<response.length; i++) {
-                    model.update({groupId: req.params.group_id, "members.personId": response[i].candidates[0].personId}, {$push: {"members.$.presenceLog": true}}, function(err){
-                        if (err) {
-                            reject(err);
-                        } else {
-                            resolve({message: 'Update presenceLog successfully'});
-                        }
-                    })
+                var personFound = []
+				var existCheck = false
+				var tmpMemberLog = [];
+				var tmpMemberLogImagePath = [];
+				for (var i = 0; i<response.length; i++) {
+					if(response[i].candidates[0] != undefined)
+						personFound.push(response[i].candidates[0].personId)
                 }
+				
+				var query = model.find({
+					$and: [
+						{groupId: group_id}
+					]}).select('members');
+
+				query.exec(function(err, member) {
+					var returnMember = {};
+					if (err) {
+						
+					} else {
+						if(member[0] != undefined) {
+							for(var i=0; i<member[0].members.length; i++) {
+								tmpMemberLog = member[0].members[i].presenceLog[0].log;
+								tmpMemberLogImagePath = member[0].members[i].presenceLog[0].logImagePath;
+								existCheck = (personFound.indexOf(member[0].members[i].personId) > -1);
+								tmpMemberLog.push(existCheck);
+								tmpMemberLogImagePath.push(imagePath);
+								model.update({groupId: group_id, "members.personId": member[0].members[i].personId},
+													   {$set: {"members.$.presenceLog": {log: tmpMemberLog, logImagePath: tmpMemberLogImagePath}}},
+								function(err){
+									if (err) {
+										reject(err);
+									} else {
+										resolve({message: 'Update presenceLog successfully'});
+									}
+								})								
+							}
+						}
+					}
+				})
+				
+
             })
         }
 
@@ -759,7 +805,7 @@ router.route('/analyze/:group_id')
             console.log('@identifyyy: ' + response);
             
             // Update presenceLog of member
-            return updatePresenceLog(req.params.group_id, response);            
+            return updatePresenceLog(req.params.group_id, imagePath, response);            
         }).then(function(response, error) {
             var membersInfo = [];
             for (var i = 0; i<response.length; i++) {
@@ -795,7 +841,9 @@ router.route('/analyze/:group_id')
             }
 
             res.json({message: req.params.group_id + " was analyzed successfully", data: response});
-        })
+        }).catch(function(error) {
+			console.log(error)
+		})
     });
 
 router.route('/analyze/:group_id/detect')
@@ -849,7 +897,9 @@ router.route('/train/:group_id')
             } else {
                 res.json(response);
             }
-        })
+        }).catch(function(error) {
+			console.log(error)
+		})
     });
 
 module.exports = router;

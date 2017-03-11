@@ -9,7 +9,7 @@ var meerkatSchema = mongoose.Schema({
             memberId: String,
             firstname: String,
             lastname: String,
-            memeberDetail: String,
+            memberDetail: String,
             personId: String,
             personImages: [
                 {
