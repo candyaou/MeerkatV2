@@ -133,12 +133,19 @@ router.route('/groups')
                     userModel.groupDetail = req.body.groupDetail;
                 
                 userModel.save(function(err) {
-                    if (err)
+                    if (err) {
                         res.send(err);
-                    res.json({message: req.body.groupName + ' was created successfully'});
+						res.json({code: -2, status: "Failed to create a person group."})
+					} else {
+						res.json({code: 0, status: req.body.groupName + " was created successfully."})
+					}
                 });
             }
-        });
+        }).catch(function(error) {
+			if(error.code == "PersonGroupExists") {
+				res.json({code: -3, status: req.body.groupName + " cannot be created due to existing in the system."})
+			}
+		})
     })
 
     /**
@@ -148,12 +155,9 @@ router.route('/groups')
         model.find(function(err, group) {
             if (err) {
                 res.send(err);
+				res.json({code: -2, status: "Failed to fetch groups."})
             } else {
-				// Check whether there is at least one group in DB or not.
-				if(group[0] == null)
-					res.json([]) // If not return [] <-- Blank JSON
-				else
-                	res.json(group);
+				res.json({code: 0, status: "", group: group})
             }
         })
     });
@@ -226,7 +230,9 @@ router.route('/groups/:group_id')
      * Delete group
      */
     .delete(function(req, res) {
-        var deleteCreator = analyzer().group.delete(req.body.groupId);
+        if (req.params.group_id == undefined)
+			res.json({error: 'Id must be provided!'});
+        var deleteCreator = analyzer().group.delete(req.params.group_id);
         deleteCreator.then(function(response, error) {
             if (error) {
                 res.send(error);
@@ -234,13 +240,16 @@ router.route('/groups/:group_id')
                 model.remove({groupId: req.params.group_id}, function(err, bear) {
                     if (err) {
                         res.send(err);
+						res.json({code: -2, status: "The group cannot be deleted due to some errors."})
                     } else {
                         console.log(response);
-                        res.json({message: req.body.groupId + " was deleted successfully"});
+                        res.json({message: req.params.group_id + " was deleted successfully"});
                     }
                 })
             }
-        })
+        }).catch(function(error) {
+			res.json({code: -3, status: "The group cannot be deleted due to some errors."})
+		})
     });
 
 // on route that end in /group/:group_id/members
@@ -262,55 +271,54 @@ router.route('/groups/:group_id/members')
         member.memberDetail = req.body.memberDetail || '';
 
         console.log(member);
-        memberCreator = analyzer().person.create(req.params.group_id, req.body.firstname + ' ' + req.body.lastname, member.memberDetail)
-        memberCreator.then(function(response, error) {
-            if (error) {
-                res.send(error);
-            } else {
-				//Checking duplication of memberId in DB.
-				var query = model.find({
-					$and: [
-						{groupId: req.params.group_id}, 
-						{members: {$elemMatch: {memberId: req.body.memberId}}}
-					]}).select('members');
-
-				var isDuplicated = false;
-				query.exec(function(err, member) {
-					if (err) {
-						res.send(err)
+		//Checking duplication of memberId in DB.
+		var query = model.find({
+			$and: [
+				{groupId: req.params.group_id}, 
+				{members: {$elemMatch: {memberId: req.body.memberId}}}
+			]}).select('members');
+		var isDuplicated = false;
+		query.exec(function(err, member) {
+			if (err) {
+				res.send(err)
+			} else {
+				if(member[0] != undefined) {
+					for(var i=0; i<member[0].members.length; i++) {
+						if(member[0].members[i].memberId == req.body.memberId) {
+							isDuplicated = true;
+							break
+						}
+					}
+				}
+			}
+		}).then(function(response, error) {
+			if(isDuplicated == true) {
+				res.json({code: -1, status: "There is a duplication of memberId in the database."})
+			} else {
+				memberCreator = analyzer().person.create(req.params.group_id, req.body.firstname + ' ' + req.body.lastname, member.memberDetail)
+				memberCreator.then(function(memRes, error) {
+					if (error) {
+						res.send(error);
 					} else {
-						if(member[0] != undefined) {
-							for(var i=0; i<member[0].members.length; i++) {
-								if(member[0].members[i].memberId == req.body.memberId) {
-									isDuplicated = true;
-									break
-								}
+						if(error) {
+							res.send(error);						
+						} else {
+								console.log(res)
+								member.personId = memRes.personId              
+								console.log(member)
+								model.update({groupId: req.params.group_id}, {$push: {members: member}},  function(err) {
+									if (err) {
+										res.send(err);
+										res.json({code: -2, status: err})
+									} else {
+										res.json({code: 0, status: req.body.memberId + ' was created successfully'})
+									}
+								})
 							}
 						}
-					}
-				}).then(function(response, error) {
-					if(error) {
-						res.send(error);						
-					} else {
-						if(isDuplicated == false) {
-							member.personId = response.personId              
-							console.log(member)
-							model.update({groupId: req.params.group_id}, {$push: {members: member}},  function(err) {
-								if (err) {
-									res.send(err);
-									res.json({code: -2, status: err})
-								} else {
-									res.json({code: 0, status: req.body.memberId + ' was created successfully'})
-								}
-							})
-						} else {
-							//Duplication of memberId
-							res.json({code: -1, status: "There is a duplication of memberId in the database."})
-						}
-					}
-				});
-            }
-        })
+					})
+			}
+		})
     })
 
     /**
@@ -320,17 +328,20 @@ router.route('/groups/:group_id/members')
         model.find({groupId: req.params.group_id}, function(err, group) {
             if (err) {
                 res.send(err);
+				res.json({code: -2, status: "Failed to fetch groups."})
             } else {
-				// Check whether that particular group exists or not
-				if(group[0] == null)
-					res.json([]) // If not return [] <-- Blank JSON
-				else
-                	res.json(group[0].members);
+				res.json({code: 0, status: "", group: group})
             }
         })
     });
 
-function findMember(req, res) {
+// on route that end in /group/:group_id/members/:member_id
+router.route('/groups/:group_id/members/:member_id')
+
+    /**
+     * Get member's object
+     */
+    .get(function(req, res) {	
         var query = model.find({
             $and: [
                 {groupId: req.params.group_id}, 
@@ -361,16 +372,6 @@ function findMember(req, res) {
 			}
 			res.json(returnMember)
         })
-}
-
-// on route that end in /group/:group_id/members/:member_id
-router.route('/groups/:group_id/members/:member_id')
-
-    /**
-     * Get member's object
-     */
-    .get(function(req, res) {	
-		findMember(req, res);
     })
 
     /**
@@ -389,9 +390,11 @@ router.route('/groups/:group_id/members/:member_id')
                 res.send({error: 'Failed to delete member id ' + req.params.member_id})
            		res.json({code: -2, status: "Failed to delete member id " + req.params.member_id})
 			} else {
-				res.json({code: 0, status: ""+ req.params.member_id + " was deleted successfully"})
+				
             }
-        })
+        }).catch(function(error) {
+			res.json({code: -3, status: "Failed to delete the member due to not existing."})
+		})
     });
 
 // on route that end in /groups/:group_id/members/:member_id/name
@@ -411,18 +414,59 @@ router.route('/groups/:group_id/members/:member_id/name')
         }
         if (req.body.lastname == undefined) {
             res.send({error: 'Last name must be provided'});
-        }
-		findMember(req, res);
-		model.update({groupId: req.params.group_id, "members.memberId": req.params.member_id},
-							   {$set: {"members.$.firstname": req.body.firstname, "members.$.lastname": req.body.lastname}},
-		function(err) {
-			if (err) {
-				res.send(err);
-           		res.json({code: -2, status: "Failed to update the name of member id " + req.params.member_id})
-			} else {
-				res.json({code: 0, status: ""+ req.params.member_id + "'s name was updated successfully"})
+        } 
+		var personId;
+		var memberDetail;
+        var query = model.find({
+            $and: [
+                {groupId: req.params.group_id}, 
+                {members: {$elemMatch: {memberId: req.params.member_id}}}
+            ]}).select('members');
+	
+        query.exec(function(err, member) {
+            if (err) {
+                res.send(err)
+				res.json({code: -2, status: "Failed to fetch personId."})
+            } else {
+				if(member[0] != undefined) {
+					for(var i=0; i<member[0].members.length; i++) {
+						if(member[0].members[i].memberId == req.params.member_id) {
+							personId = member[0].members[i].personId
+							memberDetail = member[0].members[i].memberDetail
+							break
+						}
+					}
+				}
 			}
-        })
+        }).then(function(response, error) {
+			if(personId == undefined) {
+				res.json({code: -1, status: "The specified member id does not exist."})
+				return;
+			}
+		}).then(function(response,error) {
+			memberUpdater = analyzer().person.update(req.params.group_id, personId, req.body.firstname + ' ' + req.body.lastname, memberDetail)
+			memberUpdater.then(function(response, error) {
+				if (error) {
+					res.send(error);
+				} else {
+					model.update({groupId: req.params.group_id, "members.memberId": req.params.member_id},
+										   {$set: {"members.$.firstname": req.body.firstname, "members.$.lastname": req.body.lastname}},
+					function(err) {
+						if (err) {
+							res.send(err);
+							res.json({code: -2, status: "Failed to update the name of member id " + req.params.member_id})
+						} else {
+							res.json({code: 0, status: ""+ req.params.member_id + "'s name was updated successfully"})
+						}
+					})
+				}
+			}).catch(function(error) {
+				if(error.code == "PersonNotFound") {
+					res.json({code: -3, status: "Failed to update the person due to not existing."})
+				}
+				//console.log(error)
+			})
+		})
     });
 
 // on route that end in /groups/:group_id/members/:member_id/detail
@@ -436,19 +480,65 @@ router.route('/groups/:group_id/members/:member_id/detail')
         if (req.params.member_id == undefined) {
             res.send({error: 'Member Id must be provided'});
 		}
-        if (req.body.memberDetail == undefined) {
+		if (req.body.memberDetail == undefined) {
             res.send({error: 'Member Detail must be provided'});
         }
-		model.update({groupId: req.params.group_id, "members.memberId": req.params.member_id},
-							   {$set: {"members.$.memberDetail": req.body.memberDetail}},
-		function(err) {
-			if (err) {
-				res.send(err);
-           		res.json({code: -2, status: "Failed to update the detail of member id " + req.params.member_id})
-			} else {
-				res.json({code: 0, status: ""+ req.params.member_id + "'s detail was updated successfully"})
+		var personId;
+		var memberDetail;
+	    var firstname;
+	    var lastname;
+        var query = model.find({
+            $and: [
+                {groupId: req.params.group_id}, 
+                {members: {$elemMatch: {memberId: req.params.member_id}}}
+            ]}).select('members');
+	
+        query.exec(function(err, member) {
+            if (err) {
+                res.send(err)
+				res.json({code: -2, status: "Failed to fetch personId."})
+            } else {
+				if(member[0] != undefined) {
+					for(var i=0; i<member[0].members.length; i++) {
+						if(member[0].members[i].memberId == req.params.member_id) {
+							personId = member[0].members[i].personId
+							memberDetail = member[0].members[i].memberDetail
+							firstname = member[0].members[i].firstname
+							lastname = member[0].members[i].lastname
+							break
+						}
+					}
+				}
 			}
-        })
+        }).then(function(response, error) {
+			if(personId == undefined) {
+				res.json({code: -1, status: "The specified member id does not exist."})
+				return;
+			}
+		}).then(function(response,error) {
+			memberUpdater = analyzer().person.update(req.params.group_id, personId, firstname + ' ' + lastname, req.body.memberDetail)
+			memberUpdater.then(function(response, error) {
+				if (error) {
+					res.send(error);
+				} else {
+					model.update({groupId: req.params.group_id, "members.memberId": req.params.member_id},
+										   {$set: {"members.$.memberDetail": req.body.memberDetail}},
+					function(err) {
+						if (err) {
+							res.send(err);
+							res.json({code: -2, status: "Failed to update the detail of member id " + req.params.member_id})
+						} else {
+							res.json({code: 0, status: ""+ req.params.member_id + "'s detail was updated successfully"})
+						}
+					})
+				}
+			}).catch(function(error) {
+				if(error.code == "PersonNotFound") {
+					res.json({code: -3, status: "Failed to update the person due to not existing."})
+				}
+				//console.log(error)
+			})
+		})
     });
 
 // on route that in /groups/:group_id/members/:member_id/personId
@@ -738,8 +828,6 @@ router.route('/analyze/:group_id')
 						}
 					}
 				})
-				
-
             })
         }
 
