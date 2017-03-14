@@ -810,8 +810,10 @@ router.route('/analyze/:group_id')
 					} else {
 						if(member[0] != undefined) {
 							for(var i=0; i<member[0].members.length; i++) {
-								tmpMemberLog = member[0].members[i].presenceLog[0].log;
-								tmpMemberLogImagePath = member[0].members[i].presenceLog[0].logImagePath;
+								if(member[0].members[i].presenceLog[0] != undefined)
+									tmpMemberLog = member[0].members[i].presenceLog[0].log;
+								if(member[0].members[i].presenceLog[0] != undefined)
+									tmpMemberLogImagePath = member[0].members[i].presenceLog[0].logImagePath;
 								existCheck = (personFound.indexOf(member[0].members[i].personId) > -1);
 								tmpMemberLog.push(existCheck);
 								tmpMemberLogImagePath.push(imagePath);
