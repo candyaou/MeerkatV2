@@ -967,6 +967,7 @@ router.route('/summarize/:group_id/session/:session_id')
 						}
 						responseData.session = req.params.session_id
 						responseData.timestamp = tempLog.timestamp
+                        responseData.imagePath = tempLog.imagePath
 						model.find({groupId: req.params.group_id}).select('members').exec(function(err, members) {
 							var membersLog = []
 							var memberMap = new Object();
