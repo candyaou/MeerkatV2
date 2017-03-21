@@ -6,7 +6,10 @@ var meerkatSchema = mongoose.Schema({
     groupDetail: String,
     members: [
         {
-            memberId: String,
+            memberId: { 
+				type: String, 
+				unique: true
+			},
             firstname: String,
             lastname: String,
             memberDetail: String,
@@ -19,13 +22,21 @@ var meerkatSchema = mongoose.Schema({
             ],
             presenceLog: [
                 {
-                    date: Date,
-                    startTime: String,
-                    endTime: String,
-                    log: [Boolean],
-                    logImagePath: [String]
+                    sessionId: String,
+          			timestamp: String,
+                    result: Boolean
                 }
             ]
+        }
+    ],
+    log: [
+        {
+            sessionId: { 
+				type: String, 
+				unique: true
+			},
+            timestamp: [String],
+            imagePath: [String]
         }
     ]
 })
