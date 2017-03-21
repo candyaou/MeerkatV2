@@ -6,6 +6,22 @@ var mongoose = require('mongoose');
 var analyzer = require('../controller/controller');
 var model = require('../model/model');
 
+function getDateTime() {
+    var date = new Date();
+    var hour = date.getHours();
+    hour = (hour < 10 ? "0" : "") + hour;
+    var min  = date.getMinutes();
+    min = (min < 10 ? "0" : "") + min;
+    var sec  = date.getSeconds();
+    sec = (sec < 10 ? "0" : "") + sec;
+    var year = date.getFullYear();
+    var month = date.getMonth() + 1;
+    month = (month < 10 ? "0" : "") + month;
+    var day  = date.getDate();
+    day = (day < 10 ? "0" : "") + day;
+    return year + ":" + month + ":" + day + ":" + hour + ":" + min + ":" + sec;
+}
+
 function connectToDB() {
 	// connect to DB
 	mongoose.connect('mongodb://meerkat:meerkat@ds149278.mlab.com:49278/meerkat')
@@ -85,13 +101,9 @@ router.route('/connect')
 router.route('/createCollection')
     // createa collection
     .post(function(req, res) {
-		if(elements[0] == undefined) {
 			emptyThing = new model([])
 			emptyThing.save()
 			res.json({message: 'Created model successfully'})
-		} else {
-			res.json({message: 'Cannot create model due to the existing one.'})
-		}
     });
 
 // on route that end in /group
@@ -271,54 +283,28 @@ router.route('/groups/:group_id/members')
         member.memberDetail = req.body.memberDetail || '';
 
         console.log(member);
-		//Checking duplication of memberId in DB.
-		var query = model.find({
-			$and: [
-				{groupId: req.params.group_id}, 
-				{members: {$elemMatch: {memberId: req.body.memberId}}}
-			]}).select('members');
-		var isDuplicated = false;
-		query.exec(function(err, member) {
-			if (err) {
-				res.send(err)
+			memberCreator = analyzer().person.create(req.params.group_id, req.body.firstname + ' ' + req.body.lastname, member.memberDetail)
+			memberCreator.then(function(memRes, error) {
+			if (error) {
+				res.send(error);
 			} else {
-				if(member[0] != undefined) {
-					for(var i=0; i<member[0].members.length; i++) {
-						if(member[0].members[i].memberId == req.body.memberId) {
-							isDuplicated = true;
-							break
-						}
+				if(error) {
+					res.send(error);						
+				} else {
+						console.log(res)
+						member.personId = memRes.personId              
+						console.log(member)
+						model.update({groupId: req.params.group_id}, {$push: {members: member}},  function(err) {
+							if (err) {
+								res.send(err);
+								res.json({code: -2, status: err})
+							} else {
+								res.json({code: 0, status: req.body.memberId + ' was created successfully'})
+							}
+						})
 					}
 				}
-			}
-		}).then(function(response, error) {
-			if(isDuplicated == true) {
-				res.json({code: -1, status: "There is a duplication of memberId in the database."})
-			} else {
-				memberCreator = analyzer().person.create(req.params.group_id, req.body.firstname + ' ' + req.body.lastname, member.memberDetail)
-				memberCreator.then(function(memRes, error) {
-					if (error) {
-						res.send(error);
-					} else {
-						if(error) {
-							res.send(error);						
-						} else {
-								console.log(res)
-								member.personId = memRes.personId              
-								console.log(member)
-								model.update({groupId: req.params.group_id}, {$push: {members: member}},  function(err) {
-									if (err) {
-										res.send(err);
-										res.json({code: -2, status: err})
-									} else {
-										res.json({code: 0, status: req.body.memberId + ' was created successfully'})
-									}
-								})
-							}
-						}
-					})
-			}
-		})
+			})
     })
 
     /**
@@ -394,6 +380,78 @@ router.route('/groups/:group_id/members/:member_id')
             }
         }).catch(function(error) {
 			res.json({code: -3, status: "Failed to delete the member due to not existing."})
+		})
+    })
+
+	/**
+     * Update member's name
+     * @body {string}  firstname
+     * @body {string}  lastname
+     * @body {string}  memberDetail
+     */
+    .put(function(req, res) {
+        if (req.params.member_id == undefined) {
+            res.send({error: 'Member Id must be provided'});
+		}
+		if (req.body.firstname == undefined) {
+            res.send({error: 'First name must be provided'});
+        }
+        if (req.body.lastname == undefined) {
+            res.send({error: 'Last name must be provided'});
+        } 
+        if (req.body.memberDetail == undefined) {
+            res.send({error: 'memberDetail must be provided'});
+        } 
+		var personId;
+		var memberDetail;
+        var query = model.find({
+            $and: [
+                {groupId: req.params.group_id}, 
+                {members: {$elemMatch: {memberId: req.params.member_id}}}
+            ]}).select('members');
+	
+        query.exec(function(err, member) {
+            if (err) {
+                res.send(err)
+				res.json({code: -2, status: "Failed to fetch personId."})
+            } else {
+				if(member[0] != undefined) {
+					for(var i=0; i<member[0].members.length; i++) {
+						if(member[0].members[i].memberId == req.params.member_id) {
+							personId = member[0].members[i].personId
+							break
+						}
+					}
+				}
+			}
+        }).then(function(response, error) {
+			if(personId == undefined) {
+				res.json({code: -1, status: "The specified member id does not exist."})
+				return;
+			}
+		}).then(function(response,error) {
+			memberUpdater = analyzer().person.update(req.params.group_id, personId, req.body.firstname + ' ' + req.body.lastname, req.body.memberDetail)
+			memberUpdater.then(function(response, error) {
+				if (error) {
+					res.send(error);
+				} else {
+					model.update({groupId: req.params.group_id, "members.memberId": req.params.member_id},
+										   {$set: {"members.$.firstname": req.body.firstname, "members.$.lastname": req.body.lastname, "members.$.memberDetail": req.body.memberDetail}},
+					function(err) {
+						if (err) {
+							res.send(err);
+							res.json({code: -2, status: "Failed to update the name of member id " + req.params.member_id})
+						} else {
+							res.json({code: 0, status: ""+ req.params.member_id + "'s name was updated successfully"})
+						}
+					})
+				}
+			}).catch(function(error) {
+				if(error.code == "PersonNotFound") {
+					res.json({code: -3, status: "Failed to update the person due to not existing."})
+				}
+				//console.log(error)
+			})
 		})
     });
 
@@ -517,6 +575,7 @@ router.route('/analyze/:group_id')
     /**
      * Detect faces
      * @param  {object}  options                        - Options object
+     * @param  {string}  options.sessionId         - Session ID
      * @param  {string}  options.url                    - URL to image to be used
      * @param  {string}  options.path                   - Path to image to be used
      * @param  {stream}  options.stream                 - Stream for image to be used
@@ -529,7 +588,10 @@ router.route('/analyze/:group_id')
      * @param  {boolean} options.analyzesFacialHair     - Analyze facial hair?
      */
     .post(function(req, res) {
-
+		if(req.body.sessionId === undefined) {
+			res.json({code: -4, status: "Session ID must be provided."})
+			return
+		}
    	     var imagePath;
 		/** 
 		 * Gather req.body as options to send to controller().detect()
@@ -643,12 +705,9 @@ router.route('/analyze/:group_id')
         }
 
         // Update presenceLog of members who are identidied
-        function updatePresenceLog(group_id, imagePath, response) {
+        function updatePresenceLog(group_id, imagePath, response, sid) {
             return new Promise(function(resolve, reject) {
                 var personFound = []
-				var existCheck = false
-				var tmpMemberLog = [];
-				var tmpMemberLogImagePath = [];
 				for (var i = 0; i<response.length; i++) {
 					if(response[i].candidates[0] != undefined)
 						personFound.push(response[i].candidates[0].personId)
@@ -659,34 +718,77 @@ router.route('/analyze/:group_id')
 						{groupId: group_id}
 					]}).select('members');
 
-				query.exec(function(err, member) {
-					var returnMember = {};
-					if (err) {
-						
-					} else {
-						if(member[0] != undefined) {
-							for(var i=0; i<member[0].members.length; i++) {
-								if(member[0].members[i].presenceLog[0] != undefined)
-									tmpMemberLog = member[0].members[i].presenceLog[0].log;
-								if(member[0].members[i].presenceLog[0] != undefined)
-									tmpMemberLogImagePath = member[0].members[i].presenceLog[0].logImagePath;
-								existCheck = (personFound.indexOf(member[0].members[i].personId) > -1);
-								tmpMemberLog.push(existCheck);
-								tmpMemberLogImagePath.push(imagePath);
-								model.update({groupId: group_id, "members.personId": member[0].members[i].personId},
-													   {$set: {"members.$.presenceLog": {log: tmpMemberLog, logImagePath: tmpMemberLogImagePath}}},
-								function(err){
-									if (err) {
-										reject(err);
-									} else {
-										resolve({message: 'Update presenceLog successfully'});
+				query.exec(function(err, response) {
+					return response
+				}).then(function(member, error) {
+						var query2 = model.find({
+							$and: [
+								{groupId: group_id}
+							]}).select('log');
+						query2.exec(function(err, grp) {
+							if(err) {
+							} else {
+								var found = false
+								if(grp[0] != undefined) {
+									for(var i=0; i<grp[0].log.length; i++) {
+										if(grp[0].log[i].sessionId == sid) {
+											found = true
+											break
+										}
 									}
-								})								
+								}
+								var updateThing = {}
+								var findThing = {}
+								if(found == false) {
+									findThing = {groupId: group_id}
+									updateThing = {$push: {log: {"sessionId": sid, "timestamp": getDateTime(), "imagePath": imagePath}}}
+								} else {
+									findThing = {groupId: group_id,  "log.sessionId": sid}
+									updateThing = {$push: {"log.$.timestamp": getDateTime(), "log.$.imagePath": imagePath}}
+								}
+								model.update(findThing, updateThing,
+									function(err) {
+
+								})
 							}
-						}
-					}
-				})
-            })
+						}).then(function(response, error) {
+								if(member[0] != undefined) {
+									for(var i=0; i<member[0].members.length; i++) {
+										found = false
+										for(var j=0; j<member[0].members[i].presenceLog.length; j++) {
+											found = true
+										}
+										updateThing = {}
+										findThing = {}//REM
+										//if(found == false) {
+											findThing = {groupId: group_id, "members.personId": member[0].members[i].personId}
+											updateThing = {$push: {"members.$.presenceLog": {"sessionId": sid, "timestamp": getDateTime(), "result": (personFound.indexOf(member[0].members[i].personId) > -1)}}}
+										//} else {
+										/*var query3 = model.find({
+											$and: [
+												{groupId: group_id},
+												{"members.personId": member[0].members[i].personId},
+												{"members.presenceLog.sessionId": sid}
+											]}).select('members');
+											query3.exec(function(err, resp) {
+												console.log(resp)
+											});
+											findThing = {$and: [
+																	{"members.personId": member[0].members[i].personId},
+																	{"members.presenceLog.sessionId": sid}
+															   ]}
+											updateThing = {$push: {"members.0.presenceLog.0.result": (personFound.indexOf(member[0].members[i].personId) > -1)}}
+										}*/
+										model.update(findThing, updateThing,
+											function(err) {
+
+												res.json({message: err})
+										})
+									}
+								}
+						})
+				});
+			})
         }
 
         /** 
@@ -751,7 +853,7 @@ router.route('/analyze/:group_id')
             console.log('@identifyyy: ' + response);
             
             // Update presenceLog of member
-            return updatePresenceLog(req.params.group_id, imagePath, response);            
+            return updatePresenceLog(req.params.group_id, imagePath, response, req.body.sessionId);            
         }).then(function(response, error) {
             var membersInfo = [];
             for (var i = 0; i<response.length; i++) {
@@ -815,16 +917,65 @@ router.route('/train/:group_id')
      */
     .get(function(req, res) {
         var statusCreator;
-        statusCreator = analyzer().group.trainingStatus(req.params.group_id);
+        statusCreator = analyzer().group.trainingStatus(req.params.group_id)
         statusCreator.then(function(response, error) {
             if (error) {
-                res.send(error);
+                res.send(error)
             } else {
-                res.json(response);
+                res.json(response)
             }
         }).catch(function(error) {
 			console.log(error)
 		})
+    });
+
+router.route('/summarize/:group_id/session/:session_id')
+	.get(function(req, res) {
+			console.log(req.params.group_id)
+			console.log(req.params.session_id)
+			var responseData = {}
+			var query = model.find({
+				$and: [
+					{groupId: req.params.group_id}, 
+					{log: {$elemMatch: {sessionId: req.params.session_id}}}
+				]}).select('log');
+
+			query.exec(function(err, log) {
+				if (err) {
+					res.send(err);
+				} else {
+					if(log[0] != undefined) {
+						var tempLog = []
+						for(var i=0; i<log[0].log.length; i++) {
+							if(log[0].log[i].sessionId == req.params.session_id) {
+								tempLog = log[0].log[i]
+							}
+						}
+						responseData.session = req.params.session_id
+						responseData.timestamp = tempLog.timestamp
+						model.find({groupId: req.params.group_id}).select('members').exec(function(err, members) {
+							var membersLog = []
+							var memberMap = new Object();
+							for(var i=0; i<members[0].members.length; i++) {
+								for(var j=0; j<members[0].members[i].presenceLog.length; j++) {
+									if(members[0].members[i].presenceLog[j].sessionId == req.params.session_id) {
+										if(memberMap[members[0].members[i].memberId] == undefined) {
+											memberMap[members[0].members[i].memberId] = {memberId: members[0].members[i].memberId, firstname: members[0].members[i].firstname, lastname: members[0].members[i].lastname}
+											memberMap[members[0].members[i].memberId].result = []
+										}
+										memberMap[members[0].members[i].memberId].result.push(members[0].members[i].presenceLog[j].result)
+									}
+								}
+							}
+							for(key in memberMap){
+								membersLog.push(memberMap[key])
+							}
+							responseData.members = membersLog
+							res.json(responseData)
+						})
+					}
+				}
+			})
     });
 
 module.exports = router;
