@@ -72,7 +72,7 @@ var analyzer = function(){
      * @return  {string[]}  faceIds               - String array for faceIds 
      */
     function getFaceIds(responseFromDetect) {
-        console.log(responseFromDetect)
+        // console.log(responseFromDetect)
         return new Promise(function(resolve, reject) {
             var faceIds = [];
             for (var i = 0; i < responseFromDetect.length; i++) {

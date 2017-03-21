@@ -617,47 +617,47 @@ router.route('/analyze/:group_id')
 			return new Promise(function(resolve, reject) {
 				var options = {};
 				if (requestBody.url) {
-					console.log(requestBody.url);
+					// console.log(requestBody.url);
 					options.url = requestBody.url;
 					imagePath = requestBody.url;
 				}
 				else if (requestBody.path) {
-					console.log(requestBody.path);
+					// console.log(requestBody.path);
 					options.path = requestBody.path;
 					imagePath = requestBody.path;
 				}
 				else if (requestBody.stream)  {
-					console.log(requestBody.stream);
+					// console.log(requestBody.stream);
 					options.stream = requestBody.stream;
 					imagePath = requestBody.stream;
 				}
 
 				if (requestBody.returnFaceId) {
-					console.log(requestBody.returnFaceId);
+					// console.log(requestBody.returnFaceId);
 					options.returnFaceId = Boolean(requestBody.returnFaceId);
 				}
 				if (requestBody.analyzesFaceLandmarks) {
-					console.log(requestBody.analyzesFaceLandmarks);
+					// console.log(requestBody.analyzesFaceLandmarks);
 					options.analyzesFaceLandmarks = Boolean(requestBody.analyzesFaceLandmarks);
 				}
 				if (requestBody.analyzesAge) {
-					console.log(requestBody.analyzesAge);
+					// console.log(requestBody.analyzesAge);
 					options.analyzesAge = Boolean(requestBody.analyzesAge);
 				}
 				if (requestBody.analyzesGender) {
-					console.log(requestBody.analyzesGender);
+					// console.log(requestBody.analyzesGender);
 					options.analyzesGender = Boolean(requestBody.analyzesGender);
 				}
 				if (requestBody.analyzesHeadPose) {
-					console.log(requestBody.analyzesHeadPose);
+					// console.log(requestBody.analyzesHeadPose);
 					options.analyzesHeadPose = Boolean(requestBody.analyzesHeadPose);
 				}
 				if (requestBody.analyzesSmile) {
-					console.log(requestBody.analyzesSmile);
+					// console.log(requestBody.analyzesSmile);
 					options.analyzesSmile = Boolean(requestBody.analyzesSmile);
 				}
 				if (requestBody.analyzesFacialHair) {
-					console.log(requestBody.analyzesFacialHair);
+					// console.log(requestBody.analyzesFacialHair);
 					options.analyzesFacialHair = Boolean(requestBody.analyzesFacialHair);
 				}
 
@@ -825,7 +825,8 @@ router.route('/analyze/:group_id')
             }
 
             // @response {object}  Response object from Face Detection
-            console.log('@ detect: ' + response);
+            strDetect = JSON.stringify(response, null, 4);
+            console.log('@ detect: ' + strDetect);
             facesAttributes = response;
             return analyzer().getFaceIds(response);
         }).then(function(response, error) {
@@ -834,7 +835,7 @@ router.route('/analyze/:group_id')
             }
 
             // @response {string[]}  faceIds
-            console.log('@getFaceIdsss: ' + response);
+            // console.log('@getFaceIdsss: ' + response);
 
             /**
              * Identify faces
@@ -846,7 +847,8 @@ router.route('/analyze/:group_id')
             }
 
             // @response {object}  Response object from Face Identification
-            console.log('@identifyyy: ' + response);
+            strIdentify = JSON.stringify(response, null, 4); // (Optional) beautiful indented output.
+            console.log('@identify: ' + strIdentify);
             
             // Update presenceLog of member
             return updatePresenceLog(req.params.group_id, imagePath, response, req.body.sessionId);            
@@ -866,7 +868,7 @@ router.route('/analyze/:group_id')
                 res.send(error);
             }
 
-            console.log('@membersInfo: ' + response);
+            
 
             /**
              * Add faceRectangle for each member
@@ -883,7 +885,7 @@ router.route('/analyze/:group_id')
                     }
                 }
             }
-
+            console.log('@membersInfo: ' + response);
             res.json({message: req.params.group_id + " was analyzed successfully", data: response});
         }).catch(function(error) {
 			console.log(error)
