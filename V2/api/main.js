@@ -445,7 +445,11 @@ router.route('/groups/:group_id/members/:member_id/personImages')
      * @body  {string}  options.path               - Path to image to be used.
      * @body  {stream}  options.stream             - Stream for image to be used.
      * @body  {string}  options.personDetail       - Optional. Attach user data to person's face. The maximum length is 1024.
-     * @body  {object}  options.targetFace         - Optional. The rectangle of the face in the image.
+     *                          targetFace         - Optional. The rectangle of the face in the image.     
+     * @body  {string}  options.targetFaceleft
+     * @body  {string}  options.targetFacetop
+     * @body  {string}  options.targetFacewidth
+     * @body  {string}  options.targetFaceheight                                         
      */
     .post(function(req, res) {
         var personId;
@@ -484,6 +488,16 @@ router.route('/groups/:group_id/members/:member_id/personImages')
                 temp.personImagePath = req.body.stream;
                 obj.stream = req.body.stream;
             }
+
+            if(req.body.targetFaceleft !== undefined){
+                obj.userData = req.body.userData || '';
+                obj.targetFace = {};
+                obj.targetFace.left = req.body.targetFaceleft || '';
+                obj.targetFace.top = req.body.targetFacetop || '';
+                obj.targetFace.width = req.body.targetFacewidth || '';
+                obj.targetFace.height = req.body.targetFaceheight || '';
+            }
+            
         }).then(function(response, error) {
             console.log('@ body')
 
