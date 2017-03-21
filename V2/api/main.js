@@ -772,31 +772,13 @@ router.route('/analyze/:group_id')
 										for(var j=0; j<member[0].members[i].presenceLog.length; j++) {
 											found = true
 										}
-										updateThing = {}
-										findThing = {}//REM
-										//if(found == false) {
-											findThing = {groupId: group_id, "members.personId": member[0].members[i].personId}
-											updateThing = {$push: {"members.$.presenceLog": {"sessionId": sid, "timestamp": getDateTime(), "result": (personFound.indexOf(member[0].members[i].personId) > -1)}}}
-										//} else {
-										/*var query3 = model.find({
-											$and: [
-												{groupId: group_id},
-												{"members.personId": member[0].members[i].personId},
-												{"members.presenceLog.sessionId": sid}
-											]}).select('members');
-											query3.exec(function(err, resp) {
-												console.log(resp)
-											});
-											findThing = {$and: [
-																	{"members.personId": member[0].members[i].personId},
-																	{"members.presenceLog.sessionId": sid}
-															   ]}
-											updateThing = {$push: {"members.0.presenceLog.0.result": (personFound.indexOf(member[0].members[i].personId) > -1)}}
-										}*/
-										model.update(findThing, updateThing,
+										model.update({groupId: group_id, "members.personId": member[0].members[i].personId}, {$push: {"members.$.presenceLog": {"sessionId": sid, "timestamp": getDateTime(), "result": (personFound.indexOf(member[0].members[i].personId) > -1)}}},
 											function(err) {
-
-												res.json({message: err})
+												if (err) {
+													reject(err);
+												} else {
+													resolve({message: 'Update presenceLog successfully'});
+												}
 										})
 									}
 								}
