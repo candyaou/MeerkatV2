@@ -262,6 +262,8 @@ var analyzer = function(){
                 var detail = personDetail || "";
                 resolve(_client.face.person.update(groupId, personId, personName, detail));
                 reject({error: "Failed to update group"});
+            }).catch(function(e) {
+                console.log(e);
             });
         },
 
@@ -275,6 +277,8 @@ var analyzer = function(){
             return new Promise(function(resolve, reject) {
                 resolve(_client.face.person.delete(groupId, personId));
                 reject({error: "Failed to delete member in the group"});
+            }).catch(function(e) {
+                console.log(e);
             });
         },
 
@@ -296,6 +300,8 @@ var analyzer = function(){
             return new Promise(function(resolve, reject) {
                 resolve(_client.face.person.addFace(groupId, personId, options));
                 reject({error: "Failed to add faces"});
+            }).catch(function(e) {
+                console.log(e);
             });
         },
         
@@ -311,7 +317,9 @@ var analyzer = function(){
             return new Promise(function(resolve, reject) {
                 resolve(_client.face.person.getFace(groupId, personId, persistedFaceId));
                 reject({error: "Failed to get person's faces"});
-            })
+            }).catch(function(e) {
+                console.log(e);
+            });
         },
 
         /**
@@ -327,6 +335,8 @@ var analyzer = function(){
                 var userData = personDetail || undefined;
                 resolve(_client.face.person.updateFace(groupId, personId, persistedFaceId, userData));
                 reject({error: "Failed to update person's face"});
+            }).catch(function(e) {
+                console.log(e);
             });
         },
 
@@ -342,6 +352,8 @@ var analyzer = function(){
             return new Promise(function(resolve, reject) {
                 resolve(_client.face.person.deleteFace(groupId, personId, persistedFaceId));
                 reject({error: "Failed to delete person's face"});
+            }).catch(function(e) {
+                console.log(e);
             });
         }
     };
