@@ -24,7 +24,7 @@ function getDateTime() {
 
 function connectToDB() {
 	// connect to DB
-	mongoose.connect('mongodb://meerkat:meerkat@ds149278.mlab.com:49278/meerkat')
+	mongoose.connect('mongodb://meerkat:meerkat@ds147510.mlab.com:47510/meerkatrecognitiontest')
 	var db = mongoose.connection;
 	db.on('error', console.error.bind(console, 'connection error:'));
 	db.once('open', function() {
@@ -816,6 +816,8 @@ router.route('/analyze/:group_id')
 
         var detectAnalyzer;
         var facesAttributes;
+        var detectJson;
+        var identifyJson;
         gatherRequestBodyForDetection(req.body).then(function(response, error) {
             console.log(response);
             return analyzer().detect(response);
@@ -823,9 +825,9 @@ router.route('/analyze/:group_id')
             if(error) {
                 res.send(error);
             }
-
+            detectJson = response
             // @response {object}  Response object from Face Detection
-            strDetect = JSON.stringify(response, null, 4);
+            strDetect = JSON.stringify(detectJson, null, 4);
             console.log('@ detect: ' + strDetect);
             facesAttributes = response;
             return analyzer().getFaceIds(response);
@@ -847,7 +849,9 @@ router.route('/analyze/:group_id')
             }
 
             // @response {object}  Response object from Face Identification
-            strIdentify = JSON.stringify(response, null, 4); // (Optional) beautiful indented output.
+            // strIdentify = JSON.stringify(response, null, 4); // (Optional) beautiful indented output.
+            identifyJson = response
+            strIdentify = JSON.stringify(identifyJson, null, 4);
             console.log('@identify: ' + strIdentify);
             
             // Update presenceLog of member
@@ -886,7 +890,18 @@ router.route('/analyze/:group_id')
                 }
             }
             console.log('@membersInfo: ' + response);
-            res.json({message: req.params.group_id + " was analyzed successfully", data: response});
+
+            var faceRectDetect = [];
+            for(i = 0 ; i< detectJson.length ; i++){
+                if(identifyJson[i].candidates != ''){
+                    console.log(identifyJson[i].candidates);
+                    if(detectJson[i].faceId==identifyJson[i].faceId){
+                        faceRectDetect.push(detectJson[i].faceRectangle);
+                    }
+                }
+            }
+            res.json({message: req.params.group_id + " was analyzed successfully", faceRectangle: faceRectDetect});
+            // res.json({message: req.params.group_id + " was analyzed successfully", detect: detectJson, identify: identifyJson});
         }).catch(function(error) {
 			console.log(error)
 		})

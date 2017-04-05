@@ -1,5 +1,5 @@
 var oxford = require("project-oxford"),
-    _client = new oxford.Client("e618c3f7cf594203b30760573b6ea962");
+    _client = new oxford.Client("f24df96103c0430a8101f1f5b1e01853");
 
 var analyzer = function(){
     
